@@ -976,6 +976,7 @@ class InstagramScraper(object):
                 self.logger.exception('Failed to query media for user ' + user['username'])
 
     def query_media_gen_page(self, user, end_cursor=''):
+        print("query_media_gen_page:",user)
         media, end_cursor = self.__query_media(user['id'], end_cursor)
         return media, end_cursor
 
