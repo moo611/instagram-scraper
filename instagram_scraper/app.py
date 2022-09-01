@@ -58,7 +58,7 @@ def allowed_gai_family():
 
 
 original_stdout, original_stderr = sys.stdout, sys.stderr
-#sys.stdout, sys.stderr = map(LockedStream, (sys.stdout, sys.stderr))
+# sys.stdout, sys.stderr = map(LockedStream, (sys.stdout, sys.stderr))
 # Force using IPv4 connections, when the machine where this code runs uses IPv6
 urllib3_connection.allowed_gai_family = allowed_gai_family
 
@@ -82,6 +82,16 @@ input = threaded_input
 
 class PartialContentException(Exception):
     pass
+
+
+def parse_tag_data(sections):
+    data = []
+    for section in sections:
+        medias = section["layout_content"]["medias"]
+        for media in medias:
+            real_media = media["media"]
+            data.append(real_media)
+    return data
 
 
 class InstagramScraper(object):
@@ -555,8 +565,8 @@ class InstagramScraper(object):
     def query_hashtag_gen(self, hashtag):
         return self.__query_gen(QUERY_HASHTAG, QUERY_HASHTAG_VARS, 'hashtag', hashtag)
 
-    def query_hashtag_gen_page(self,hashtag, end_cursor=''):
-        return self.__query_gen_page(QUERY_HASHTAG, QUERY_HASHTAG_VARS, 'hashtag', hashtag,end_cursor)
+    def query_hashtag_gen_page(self, hashtag, end_cursor=''):
+        return self.__query_gen_page(QUERY_HASHTAG, QUERY_HASHTAG_VARS, 'hashtag', hashtag, end_cursor)
 
     def query_location_gen(self, location):
         return self.__query_gen(QUERY_LOCATION, QUERY_LOCATION_VARS, 'location', location)
@@ -582,11 +592,10 @@ class InstagramScraper(object):
         nodes, end_cursor = self.__query(url, variables, entity_name, query, end_cursor)
         return nodes, end_cursor
 
-
     def __query(self, url, variables, entity_name, query, end_cursor):
         params = variables.format(query, end_cursor)
         self.update_ig_gis_header(params)
-        print("url",url.format(params))
+        print("url", url.format(params))
         resp = self.get_json(url.format(params))
 
         if resp is not None:
@@ -600,7 +609,7 @@ class InstagramScraper(object):
                     nodes.extend(self._get_nodes(top_posts))
 
                 posts = payload['edge_' + entity_name + '_to_media']
-                #posts = payload['edge_'+entity_name+'_to_top_posts']
+                # posts = payload['edge_'+entity_name+'_to_top_posts']
                 nodes.extend(self._get_nodes(posts))
                 end_cursor = posts['page_info']['end_cursor']
                 return nodes, end_cursor
@@ -976,11 +985,10 @@ class InstagramScraper(object):
             except ValueError:
                 self.logger.exception('Failed to query media for user ' + user['username'])
 
-
-    def query_media_gen_page(self,user, end_cursor=''):
+    def query_media_gen_page(self, user, end_cursor=''):
 
         media, end_cursor = self.__query_media(user['id'], end_cursor)
-        return media,end_cursor
+        return media, end_cursor
 
     def __query_media(self, id, end_cursor=''):
         params = QUERY_MEDIA_VARS.format(id, end_cursor)
@@ -1305,9 +1313,10 @@ class InstagramScraper(object):
 
     # 2022 0810新增方法
     def get_tags_by_name(self, tag_name):
+        print("input tag:" + tag_name)
         url = "https://i.instagram.com/api/v1/tags/web_info/?tag_name=" + tag_name
         response = self.session.get(url=url, cookies=self.cookies, timeout=CONNECT_TIMEOUT)
-        if response:
+        if response and response.status_code == 200:
             # print(response.text)
             res_dict = json.loads(response.text)
             data = res_dict["data"]
@@ -1318,29 +1327,20 @@ class InstagramScraper(object):
             more_available = recent["more_available"]
             next_page = recent["next_page"]
             sections = recent["sections"]
-            datas = self.parse_tag_data(sections)
+            datas = parse_tag_data(sections)
 
             return {"next_media_ids": next_media_ids,
                     "next_max_id": next_max_id,
                     "more_available": more_available,
                     "next_page": next_page,
                     "sections": datas}
-
-        return None
-
-    def parse_tag_data(self, sections):
-        list = []
-        for section in sections:
-            medias = section["layout_content"]["medias"]
-            for media in medias:
-                real_media = media["media"]
-                list.append(real_media)
-        return list
+        raise
 
     def get_tags_more(self, params):
+        print("params:", params)
         url = "https://i.instagram.com/api/v1/tags/love/sections/"
         response = self.session.post(url=url, cookies=self.cookies, timeout=CONNECT_TIMEOUT, data=params)
-        if response:
+        if response and response.status_code == 200:
             res_dict = json.loads(response.text)
 
             next_media_ids = res_dict["next_media_ids"]
@@ -1349,15 +1349,13 @@ class InstagramScraper(object):
             next_page = res_dict["next_page"]
 
             sections = res_dict["sections"]
-            datas = self.parse_tag_data(sections)
+            datas = parse_tag_data(sections)
             return {"next_media_ids": next_media_ids,
                     "next_max_id": next_max_id,
                     "more_available": more_available,
                     "next_page": next_page,
                     "sections": datas}
-
-        return None
-
+        raise
 
     @staticmethod
     def remove_duplicate_data(file_data):
